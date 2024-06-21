@@ -1,0 +1,676 @@
+import pandas as pd #biblioteca para criação do dataframe
+from scipy import integrate #biblioteca do scipy para integração de área sob a curva
+import numpy as np #biblioteca que desempenha operações matemáticas em arrays
+from scipy.sparse import diags, spdiags #biblioteca para construção e retorno de matriz esparsa a partir de diagonais 
+from scipy.sparse.linalg import spsolve #resolve sistema linear esparso AX = B
+import matplotlib.pyplot as plt #biblioteca para criação de gráficos e figuras
+from scipy.optimize import curve_fit #biblioteca para ajustar uma curva
+from sklearn.metrics import r2_score #biblioteca para calcular o coeficiente de determinação (R^2)
+import os #biblioteca que desempenha funções dependentes do sistema operacional
+import time #biblioteca para computar o tempo de máquina utilizado em um cálculo
+
+
+x = []
+y = []
+
+#Importação do espectro de emissão:
+arquivo = input('Nome do arquivo do espectro de emissão (formato .txt): ')
+
+#Importação dos valores iniciais e finais das transições 5D0 --> 7FJ:
+s00 = input('Comprimento de onda inicial da transição 5D0 --> 7F0: ')
+e00 = input('Comprimento de onda final da transição 5D0 --> 7F0: ')
+s01 = input('Comprimento de onda inicial da transição 5D0 --> 7F1: ')
+e01 = input('Comprimento de onda final da transição 5D0 --> 7F1: ')
+s02 = input('Comprimento de onda inicial da transição 5D0 --> 7F2: ')
+e02 = input('Comprimento de onda final da transição 5D0 --> 7F2: ')
+s03 = input('Comprimento de onda inicial da transição 5D0 --> 7F3: ')
+e03 = input('Comprimento de onda final da transição 5D0 --> 7F3: ')
+s04 = input('Comprimento de onda inicial da transição 5D0 --> 7F4: ')
+e04 = input('Comprimento de onda final da transição 5D0 --> 7F4: ')
+
+#Armazenamento dos valores inicias e finais das transições:
+s00 = np.array(s00, dtype=float)
+e00 = np.array(e00, dtype=float)
+s01 = np.array(s01, dtype=float)
+e01 = np.array(e01, dtype=float)
+s02 = np.array(s02, dtype=float)
+e02 = np.array(e02, dtype=float)
+s03 = np.array(s03, dtype=float)
+e03 = np.array(e03, dtype=float)
+s04 = np.array(s04, dtype=float)
+e04 = np.array(e04, dtype=float)
+
+#Retira a extensão do nome do arquivo
+nome_sem_extensao, extensao = os.path.splitext(arquivo)
+
+#Importação da curva de decaimento da emissão:
+arquivo0 = input('Nome do arquivo da curva de decaimento da emissão (formato.txt): ')
+
+#Computa o tempo de início do cálculo
+start_time = time.time()
+
+#Cálculo do tempo de vida:
+#Abrindo arquivo da curva de decaimento da emissão:
+with open(arquivo0) as decay_emission:
+    for line in decay_emission:
+        values = line.split('\t')
+        x.append(float(values[0]))
+        y.append(float(values[1]))
+
+x1 = np.array(x, dtype=float)
+y1 = np.array(y, dtype=float)
+
+#Normalização da curva:
+min_y11, max_y11 = np.min(y1), np.max(y1) 
+normalized_y11= (y1 - min_y11) / (max_y11 - min_y11)
+
+min_x1, max_x1 = (np.min(x1)), (np.max(x1))
+
+#Função monoexponential:
+def exponential_func(x1, a, b, c):
+    return a * np.exp(-x1/b) + c
+
+params, param_covariance = curve_fit(exponential_func, x1, normalized_y11, absolute_sigma=False, method = 'lm')
+
+#Ajuste monoexponential:
+
+a_fit, b_fit, c_fit = params
+
+y_fit = exponential_func(x1, a_fit, b_fit, c_fit)
+
+
+#Desvio padrão:
+
+std_dev_a = np.sqrt(param_covariance[0, 0])
+std_dev_b = np.sqrt(param_covariance[1, 1])
+std_dev_c = np.sqrt(param_covariance[2, 2])
+
+#print(param_covariance)
+#print(a_fit)
+#print(b_fit)
+#print(c_fit)
+#print(std_dev_a)
+#print(std_dev_b)
+#print(std_dev_c)
+
+#Valores coeficiente de determinação (R^2):
+r_squared1 = r2_score(normalized_y11, y_fit)
+
+#print(r_squared1)
+
+#Função Biexponential:
+
+def biexponential_func(x1, a1, a2, b1, b2, c1):
+    return a1 * np.exp(-x1 / b1) + a2 * np.exp(-x1 / b2) + c1
+
+params2, param_covariance2 = curve_fit(biexponential_func, x1, normalized_y11, absolute_sigma=False, method = 'lm', maxfev=5000)
+
+#Ajuste biexponential:
+
+a1_fit, a2_fit, b1_fit, b2_fit, c1_fit = params2
+
+y_fit2 = biexponential_func(x1, a1_fit, a2_fit, b1_fit, b2_fit, c1_fit)
+
+#print(y_fit2)
+
+#Desvio padrão:
+
+std_dev_a1 = np.sqrt(param_covariance2[0, 0])
+std_dev_a2 = np.sqrt(param_covariance2[1, 1])
+std_dev_b1 = np.sqrt(param_covariance2[2, 2])
+std_dev_b2 = np.sqrt(param_covariance2[3, 3])
+std_dev_c = np.sqrt(param_covariance2[4, 4])
+
+#print(param_covariance2)
+#print(a1_fit)
+#print(a2_fit)
+#print(b1_fit)
+#print(b2_fit)
+#print(c1_fit)
+#print(std_dev_a1)
+#print(std_dev_a2)
+#print(std_dev_b1)
+#print(std_dev_b2)
+#print(std_dev_c)
+
+#Valores coeficiente de determinação (R^2):
+r_squared2 = r2_score(normalized_y11, y_fit2)
+#print(r_squared2)
+
+# Tempos de vida e taxas de decaimento total do 5D0:
+
+#Tempo de vida (ajuste monoexponencial):
+lifetime1 = (a_fit*b_fit**2 + a_fit*b_fit**2)/(a_fit*b_fit + a_fit*b_fit)
+
+#print(lifetime1)
+#print(b_fit)
+
+#Taxa de decaimento total do 5D0 (ajuste monoexponencial):
+Atot1 = (1/lifetime1)*1000
+
+#Tempo de vida ponderado (ajuste biexponencial):
+lifetime2 = (a1_fit*b1_fit**2 + a2_fit*b2_fit**2)/(a1_fit*b1_fit + a2_fit*b2_fit)
+
+#Desvio padrão ponderado:
+std_dev_lifetime2 = (std_dev_a1*std_dev_b1**2 + std_dev_a2*std_dev_b2**2)/(std_dev_a1*std_dev_b1 + std_dev_a2*std_dev_b2)
+
+#print(b1_fit)
+#print(b2_fit)
+#print(lifetime2)
+
+#print(std_dev_lifetime2)
+
+#print(Atot1)
+
+#Taxa de decaimento total do 5D0 (ajuste biexponencial):
+Atot2 = (1/lifetime2)*1000
+
+
+#Cálculo dos parâmetros de intensidade Eu3+:
+
+x = []
+y = []
+
+#Abrindo arquivo do espectro de emissão:
+with open(arquivo) as emission_spectra:
+    for line in emission_spectra:
+        values = line.split('\t')
+        x.append(float(values[0]))
+        y.append(float(values[1]))
+
+x = np.array(x, dtype=float)
+y = np.array(y, dtype=float)
+
+#print(x)
+#print(y)
+
+#Normalização:
+min_y1, max_y1 = np.min(y), np.max(y) 
+normalized_y1 = (y - min_y1) / (max_y1 - min_y1)
+
+
+#Ajuste da linha de base:
+
+def baseline_als(y, lam, p, niter=10):
+    L = len(y)
+    D = np.diff(np.eye(L), 2, axis=0)  # Correção para o cálculo da matriz D
+    W = np.diag(np.ones(L))
+    for i in range(niter):
+        Z = W + lam * np.dot(D.T, D)
+        z = np.linalg.solve(Z, W.dot(y))
+        w = p * (y > z) + (1 - p) * (y < z)
+        W = np.diag(w)
+    return z
+#def baseline_als(y, lam, p, niter=10):
+#    L = len(y)
+#    D = diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2))
+#    w = np.ones(L)
+#    for _ in range(niter):
+#        W = spdiags(w, 0, L, L)
+#        Z = W + lam * D.dot(D.transpose())
+#        z = spsolve(Z, w * y)
+#        w = p * (y > z) + (1 - p) * (y < z)
+#    return z
+
+baseline = baseline_als(y, lam=3e6, p=1e-8) #lam=3e6, p=1e-8 / lam=1e4, p=1e-2 
+
+#Valor da linha de base corrigida:
+corrigida_y0 = y - baseline
+
+#Normalização
+min_y2, max_y2 = np.min(corrigida_y0), np.max(corrigida_y0) 
+normalized_y2 = (corrigida_y0 - min_y2) / (max_y2 - min_y2)
+
+
+normalized_y = normalized_y2
+
+
+#print(normalized_y)
+
+#print(normalized_y1)
+
+#print(normalized_y1)
+
+#Definindo os intervalos de espectro de emissão:
+
+#5D0 --> 7F0
+
+#Ínicio e Fim da transição:
+s00 = s00
+e00 = e00
+
+#Procura o valor em (nm) e converte para os índices de início e fim da transição:
+indices_s00 = np.where(x == s00)
+index_s00 = indices_s00[0][0]
+#print(index_s00)
+indices_e00 = np.where(x == e00)
+index_e00 = indices_e00[0][0]
+#print(index_e00)
+
+#print(indices_s00)
+start_index = index_s00  
+end_index = index_e00 
+#print(end_index)
+x_interval00 = x[start_index:end_index + 1]
+
+#Usa o mesmo intervalo para y:
+
+y_interval00 = normalized_y[start_index:end_index + 1]
+
+#Calcula a área sobre a curva usando método de Simpson:
+I00 = integrate.simps(y_interval00, x_interval00)
+
+#print('u1',I00)
+#print('{:.10f}'.format(I00))
+
+#Calcula o baricentro desse intervalo:
+barycenter_x00 = np.sum(x_interval00 * y_interval00) / np.sum(y_interval00)
+barycenter_x00_int = int(barycenter_x00)
+
+#print('b1', barycenter_x00)
+#print(int(barycenter_x00))
+
+
+#5D0 --> 7F1
+
+#Ínicio e Fim da transição:
+s01 = s01
+e01 = e01
+
+#Procura o valor em (nm) e converte para os índices de início e fim da transição:
+indices_s01 = np.where(x == s01)
+index_s01 = indices_s01[0][0]
+#print(index)
+indices_e01 = np.where(x == e01)
+index_e01 = indices_e01[0][0]
+
+
+#print(indices_s01)
+start_index = index_s01  
+end_index = index_e01 
+#print(end_index)
+x_interval01 = x[start_index:end_index + 1]
+
+
+#print(x_interval01)
+
+#Usa o mesmo intervalo para y:
+
+y_interval01 = normalized_y[start_index:end_index + 1]
+
+#print(y_interval01)
+
+#Calcula a área sobre a curva usando método de Simpson:
+I01 = integrate.simps(y_interval01, x_interval01)
+#print(I01)
+
+#Calcula o baricentro desse intervalo:
+barycenter_x01 = np.sum(x_interval01 * y_interval01) / np.sum(y_interval01)
+barycenter_x01_int = int(barycenter_x01)
+barycenter_y01 = np.mean(y_interval01)
+
+#print(barycenter_x01)
+#print(barycenter_y01)
+
+#5D0 --> 7F2
+
+#Ínicio e Fim da transição:
+s02 = s02
+e02 = e02
+
+#Procura o valor em (nm) e converte para os índices de início e fim da transição:
+indices_s02 = np.where(x == s02)
+index_s02 = indices_s02[0][0]
+#print(index)
+indices_e02 = np.where(x == e02)
+index_e02 = indices_e02[0][0]
+
+
+#print(indices_s02)
+start_index = index_s02  
+end_index = index_e02 
+#print(end_index)
+x_interval02 = x[start_index:end_index + 1]
+
+#print(x_interval02)
+
+#Usa o mesmo intervalo para y:
+
+y_interval02 = normalized_y[start_index:end_index + 1]
+
+#print(y_interval02)
+
+#Calcula a área sobre a curva usando método de Simpson:
+I02 = integrate.simps(y_interval02, x_interval02)
+#print(I02)
+
+#print('{:.10f}'.format(I02))
+#print('{:.10f}'.format(I002))
+
+#Calcula o baricentro desse intervalo:
+barycenter_x02 = np.sum(x_interval02 * y_interval02) / np.sum(y_interval02)
+barycenter_x02_int = int(barycenter_x02)
+barycenter_y02 = np.mean(y_interval02)
+
+#print(barycenter_x02)
+#print(barycenter_y02)
+
+#5D0 --> 7F3
+
+#Ínicio e Fim da transição:
+s03 = s03
+e03 = e03
+
+#Procura o valor em (nm) e converte para os índices de início e fim da transição:
+indices_s03 = np.where(x == s03)
+index_s03 = indices_s03[0][0]
+indices_e03 = np.where(x == e03)
+index_e03 = indices_e03[0][0]
+
+#print(indices_s03)
+start_index = index_s03  
+end_index = index_e03 
+#print(end_index)
+x_interval03 = x[start_index:end_index + 1]
+
+#print(x_interval03)
+
+#Usa o mesmo intervalo para y:
+
+y_interval03 = normalized_y[start_index:end_index + 1]
+
+#print(y_interval03)
+
+#Calcula a área sobre a curva usando método de Simpson:
+I03 = integrate.simps(y_interval03, x_interval03)
+#print(I03)
+
+#Calcula o baricentro desse intervalo:
+barycenter_x03 = np.sum(x_interval03 * y_interval03) / np.sum(y_interval03)
+barycenter_x03_int = int(barycenter_x03)
+barycenter_y03 = np.mean(y_interval03)
+
+#print(barycenter_x03)
+#print(barycenter_y03)
+
+#5D0 --> 7F4
+
+#Ínicio e Fim da transição:
+s04 = s04
+e04 = e04
+
+#Procura o valor em (nm) e converte para os índices de início e fim da transição:
+indices_s04 = np.where(x == s04)
+index_s04 = indices_s04[0][0]
+#print(index)
+indices_e04 = np.where(x == e04)
+index_e04 = indices_e04[0][0]
+
+
+#print(indices_s04)
+start_index = index_s04  
+end_index = index_e04 
+#print(end_index)
+x_interval04 = x[start_index:end_index + 1]
+
+#print(x_interval04)
+
+#Usa o mesmo intervalo para y:
+
+y_interval04 = normalized_y[start_index:end_index + 1]
+
+#print(y_interval04)
+
+#Calcula a área sobre a curva usando método de Simpson:
+I04 = integrate.simps(y_interval04, x_interval04)
+#print(I04)
+
+#Calcula o baricentro desse intervalo:
+barycenter_x04 = np.sum(x_interval04 * y_interval04) / np.sum(y_interval04)
+barycenter_x04_int = int(barycenter_x04)
+barycenter_y04 = np.mean(y_interval04)
+
+
+#print(barycenter_x04)
+#print(barycenter_y04)
+
+#Cálculo da taxas de decaimento radiativo espontâneo por transição (A0J, com J = 0-4)
+
+#índice de refrão escolhido:
+nhost = 1.5
+
+#Taxa de decaimento radiativo espontâneo 5D0 --> 7F1:
+A1 = barycenter_x01
+#print(A1)
+A01 = A001 = (0.31e-11*(nhost**3)*(((1e7)/A1))**3)
+#print(A01)
+
+#Taxas de decaimento radiativo espontâneo relativos 5D0 --> 7FJ (J = 0, 2, 3 e 4):
+A00 = (I00/I01)*A01
+#print(A00)
+A02 = (I02/I01)*A01
+#print(A02)
+A03 = (I03/I01)*A01
+#print(A03)
+A04 = (I04/I01)*A01
+#print(A04)
+
+#Calcula da taxa de decaimento radiativo (Arad):
+Arad1 = np.sum(A00+A01+A02+A03+A04)
+I_tot_trans = np.sum(I00+I01+I02+I03+I04)
+#print(I_tot_trans)
+I_tot = integrate.simps(normalized_y, x)
+#print(I_tot)
+#Arad = (I_tot/I01)*A01
+#print(Arad1)
+#print(Arad)
+
+#Cálculo do rendimento quântico intrínseco QEuEu (%):
+
+IQY1 = (Arad1/Atot1)*100
+IQY2 = (Arad1/Atot2)*100
+
+#Taxa de decaimento não radiativo do 5D0:
+
+Anrad1 = Atot1 - Arad1
+Anrad2 = Atot2 - Arad1
+
+#Cálculo dos parâmetros de Judd-Ofelt (Omegas):
+J2 = 0.0032 #U(2)^2 for 5D0 --> 7F2
+J4 = 0.0023 #U(4)^2 for 5D0 --> 7F4
+chi = (nhost*(nhost**2 + 2)**2)/9
+#print(chi)
+c2 = (7.23e10*(1.0e7/barycenter_x02)**3)*chi*J2
+omega2 = (A02/c2)*1.0e20
+#print(omega2)
+c4 = (7.23e10*(1.0e7/barycenter_x04)**3)*chi*J4
+omega4 = (A04/c4)*1.0e20
+#print(omega4)
+
+#Conversão dos baricentros de nm para cm^-1:
+BA00 = (1.e7/barycenter_x00)
+BA01 = (1.e7/barycenter_x01)
+BA02 = (1.e7/barycenter_x02)
+BA03 = (1.e7/barycenter_x03)
+BA04 = (1.e7/barycenter_x04)
+
+BA00_int = (1.e7/barycenter_x00_int)
+BA01_int = (1.e7/barycenter_x01_int)
+BA02_int = (1.e7/barycenter_x02_int)
+BA03_int = (1.e7/barycenter_x03_int)
+BA04_int = (1.e7/barycenter_x04_int)
+
+#print('{:.3f}'.format(BA00))
+#print('{:.3f}'.format(BA01))
+#print('{:.3f}'.format(BA02))
+#print('{:.3f}'.format(BA03))
+#print('{:.3f}'.format(BA04))
+#
+#print('{:.3f}'.format(omega2))
+#print('{:.3f}'.format(omega4))
+#print('{:.3f}'.format(Arad1))
+#print('{:.3f}'.format(Arad))
+
+#delta5D0:
+
+delta5D0 = BA00 - 17293 #valor obtido para o 5D0 na tabela de Carnall
+
+#Cálculo do parâmetro R02:
+R02 = I00/I02
+#print('{:.3f}'.format(R02))
+
+#min_x, max_x = (np.min(x)+(s00-np.min(x))-10), np.max(x)
+
+#Configuração das Figuras para exportação:
+#Figura 1:
+fig_size = plt.rcParams["figure.figsize"]
+fig_size[0] = 10
+fig_size[1] = 7
+plt.rcParams['figure.figsize'] = fig_size
+plt.subplot(1, 2, 1) #divisão em duas figuras uma ao lado da outra
+plt.plot(x,normalized_y1, label = 'Espectro de Emissão', linewidth=1.0, color="red") #Espectro de emissão normalizado não corrigido
+plt.plot(x,normalized_y, label = 'Espectro de Emissão Corrigido', linewidth=1.0, color="black") #Espectro de emissão normalizado corrigido
+plt.xlabel('Comprimento de onda / $\mathregular{nm}$', family = 'Times New Roman', fontsize=26)
+plt.xlim(560,730)
+plt.ylabel('Intensidade normalizada', family = 'Times New Roman', fontsize=26)
+plt.ylim(-0.1,1.3)
+#Parâmetros de intensidade Arad, omega 2, omega 4, delta5D0 e R02 impressos na figura:
+plt.text(0.45, 0.75, f"Parâmetros de intensidade:", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=14)
+plt.text(0.45, 0.70, f"A$_r$$_a$$_d$ = {Arad1:4.2f} s$^-$$^1$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.45, 0.65, f"\u03A9$_2$ = {omega2:4.3f} × 10$^-$$^2$$^0$ cm$^2$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.45, 0.60, f"\u03A9$_4$ = {omega4:4.3f} × 10$^-$$^2$$^0$ cm$^2$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.45, 0.55, f"\u0394$^5$D$_0$ = {delta5D0:4.1f} cm$^-$$^1$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.45, 0.50, f"R$_0$$_2$ = {R02:4.3f}", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.xticks(family = 'Times New Roman', fontsize = 15) 
+plt.yticks(family = 'Times New Roman', fontsize = 15)
+#Rotulaçã das transições de acordo com o baricentro em x da transição:
+plt.text(barycenter_x00_int, 0.2, f"$^5$D$_0$ → $^7$F$_0$", rotation='vertical', family = 'Times New Roman', fontsize=14) 
+plt.text(barycenter_x01_int,0.2, f"$^5$D$_0$ → $^7$F$_1$", rotation='vertical', family = 'Times New Roman', fontsize=14)
+plt.text(barycenter_x02_int+5,0.7, f"$^5$D$_0$ → $^7$F$_2$", rotation='vertical', family = 'Times New Roman', fontsize=14)
+plt.text(barycenter_x03_int,0.2, f"$^5$D$_0$ → $^7$F$_3$", rotation='vertical', family = 'Times New Roman', fontsize=14)
+plt.text(barycenter_x04_int,0.25, f"$^5$D$_0$ → $^7$F$_4$", rotation='vertical', family = 'Times New Roman', fontsize=14)
+plt.rc('font', family = 'Times New Roman')
+plt.legend(frameon=False, fontsize=14)
+plt.tight_layout()
+
+#Figura 2:
+#Define uma condição para plotagem, se o R^2 for menor que 0.98 será plotado o ajuste biexponencial, caso contrário o ajuste monoexponencial será plotado
+#Imprime na figura o tempo de vida, R^2, Atotal, Anrad, QEuEu:
+if r_squared1 < 0.98:
+    test_string00 = y_fit2
+    test_string01 = f"Tempo de vida ponderado:"
+    test_string0 = "Ajuste biexponencial"
+    text_string1 = f"\u03C4 = {lifetime2:4.5f} ± {std_dev_lifetime2:4.5f} ms"
+    text_string2 = f"R$^2$ = {r_squared2:4.5f}"
+    text_string3 = f"A$_t$$_o$$_t$ = {Atot2:4.2f} s$^-$$^1$"
+    text_string4 = f"A$_n$$_r$$_a$$_d$ = {Anrad2:4.2f} s$^-$$^1$"
+    text_string5 = f"\u03A6    = {IQY2:4.1f} %"
+else:
+    test_string00 = y_fit
+    test_string01 = f"Tempo de vida:"
+    test_string0 = "Ajuste Monoexponencial"
+    text_string1 = f"\u03C4 = {lifetime1:4.5f} ± {std_dev_b:4.5f} ms"
+    text_string2 = f"R$^2$ = {r_squared1:4.5f}"
+    text_string3 = f"A$_t$$_o$$_t$ = {Atot1:4.2f} s$^-$$^1$"
+    text_string4 = f"A$_n$$_r$$_a$$_d$ = {Anrad1:4.2f} s$^-$$^1$"
+    text_string5 = f"\u03A6    = {IQY1:4.1f} %"
+
+fig_size = plt.rcParams["figure.figsize"]
+fig_size[0] = 10
+fig_size[1] = 7
+plt.rcParams['figure.figsize'] = fig_size
+plt.subplot(1, 2, 2)
+plt.plot(x1,normalized_y11, 'o', markersize=4, label = 'Curva de Decaimento da Emissão', linewidth=0.3, color="black")
+plt.plot(x1,test_string00, label = test_string0, linewidth=1.0, color="red")
+plt.text(0.32, 0.75, test_string01, transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=14)
+plt.text(0.32, 0.70, text_string1, transform=plt.gca().transAxes, family='Times New Roman', fontsize=12)
+plt.text(0.32, 0.65, text_string2, transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.32, 0.60, f"Taxas de Decaimento", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=14)
+plt.text(0.32, 0.55, f"Total e Não Radiativo:", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=14)
+plt.text(0.32, 0.50, text_string3, transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.32, 0.45, text_string4, transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.32, 0.40, f"Rendimento Quântico Intrínseco:", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=14)
+plt.text(0.32, 0.35, text_string5, transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=12)
+plt.text(0.32, 0.35, f"     $^E$$^u$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=9)
+plt.text(0.32, 0.35, f"     $_E$$_u$", transform=plt.gca().transAxes, family = 'Times New Roman', fontsize=9)
+plt.xlabel('Tempo / $\mathregular{ms}$', family = 'Times New Roman', fontsize=26)
+plt.xlim(min_x1, max_x1)
+plt.ylabel('Intensidade normalizada', family = 'Times New Roman', fontsize=26)
+plt.ylim(-0.1,1.3)
+plt.xticks(family = 'Times New Roman', fontsize = 15) 
+plt.yticks(family = 'Times New Roman', fontsize = 15)
+plt.rc('font', family = 'Times New Roman')
+plt.legend(frameon=False, fontsize=14)
+plt.tight_layout()
+
+
+#Salva o espectro de emissão corrigido em txt:
+np.savetxt(arquivo.replace('.txt', '_tratado.txt'), np.column_stack([x, corrigida_y0]), fmt='%.6f')
+
+#Computa o tempo de fim do cálculo
+end_time = time.time()
+
+#Imprime o tempo total do cálculo:
+print(f"Término do calculo.\nTempo total de cálculo: {end_time - start_time:.2f} segundos.")
+
+#plt.show()
+
+#Salva a figura nos formatos pdf, tiff e svg:
+output_path1 = f'{nome_sem_extensao}.pdf'
+output_path2 = f'{nome_sem_extensao}.tiff'
+output_path3 = f'{nome_sem_extensao}.svg'
+
+plt.savefig(output_path1, format='pdf', bbox_inches='tight')
+plt.savefig(output_path2, dpi=1200, format='tiff', bbox_inches='tight')
+plt.savefig(output_path3, format='svg', bbox_inches='tight')
+
+#Criação de um dataframe e salva uma tabela com os baricentros das transições, taxa radiativa por transição, Arad, Omega2, Omega4, delta5D0 e R02:
+K = ''
+decimal_places_1 = 1
+decimal_places_2 = 2
+decimal_places_3 = 3
+
+BA00_formated = '{:.{}f}'.format(BA00, decimal_places_1)
+BA01_formated = '{:.{}f}'.format(BA01, decimal_places_1)
+BA02_formated = '{:.{}f}'.format(BA02, decimal_places_1)
+BA03_formated = '{:.{}f}'.format(BA03, decimal_places_1)
+BA04_formated = '{:.{}f}'.format(BA04, decimal_places_1)
+
+A00_formated = '{:.{}f}'.format(A00, decimal_places_2)
+A01_formated = '{:.{}f}'.format(A01, decimal_places_2)
+A02_formated = '{:.{}f}'.format(A02, decimal_places_2)
+A03_formated = '{:.{}f}'.format(A03, decimal_places_2)
+A04_formated = '{:.{}f}'.format(A04, decimal_places_2)
+
+Arad_formated = '{:.{}f}'.format(Arad1, decimal_places_2)
+
+omega2_formated = '{:.{}f}'.format(omega2, decimal_places_3)
+omega4_formated = '{:.{}f}'.format(omega4, decimal_places_3)
+
+delta5D0_formated = '{:.{}f}'.format(delta5D0, decimal_places_2)
+
+R02_formated = '{:.{}f}'.format(R02, decimal_places_3)
+
+nome = f"Arquivos de entrada: {arquivo} e {arquivo0}"
+data = {
+    'Transições ($^5$D$_0$ → $^7$F$_J$)': ['$^5$D$_0$ → $^7$F$_0$', '$^5$D$_0$ → $^7$F$_1$', '$^5$D$_0$ → $^7$F$_2$', '$^5$D$_0$ → $^7$F$_3$', '$^5$D$_0$ → $^7$F$_4$'],
+    'Baricentros (cm$^-$$^1$)': [BA00_formated, BA01_formated , BA02_formated, BA03_formated, BA04_formated],
+    'A$_0$$_J$ (s$^-$$^1$)': [A00_formated, A01_formated , A02_formated, A03_formated, A04_formated],
+    'A$_r$$_a$$_d$ (s$^-$$^1$)': [Arad_formated, '\u03A9$_2$ (× 10$^-$$^2$$^0$ cm$^2$)', omega2_formated, '\u03A9$_4$ (× 10$^-$$^2$$^0$ cm$^2$)', omega4_formated],
+    '\u0394$^5$D$_0$ (cm$^-$$^1$)': [delta5D0_formated, 'R$_0$$_2$',R02_formated, K, K],
+}
+
+df = pd.DataFrame(data)
+
+#print("Dataframe:")
+#print(df)
+
+#Salva a tabela em formato pdf:
+output_path = f'{nome_sem_extensao}_tabela.pdf'
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.axis('off')
+ax.table(cellText=df.values, colLabels=df.columns, cellLoc = 'center', loc='center')
+
+plt.savefig(output_path, format='pdf', bbox_inches='tight')
+print(f"Tabela em PDF salva como {output_path}")
